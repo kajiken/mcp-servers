@@ -56,6 +56,9 @@ async function fetchDocuments<T>(query: string): Promise<T | null> {
         Authorization: `Token ${API_TOKEN}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch documents:", error);
