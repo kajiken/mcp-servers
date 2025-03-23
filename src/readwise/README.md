@@ -111,5 +111,5 @@ MIT
 
 ## Links
 
-- [Readwise Reader API Documentation](https://readwise.io/api_deets)
+- [Readwise Reader API Documentation](https://readwise.io/reader_api)
 - [Model Context Protocol Documentation](https://github.com/modelcontextprotocol/modelcontextprotocol)
