@@ -1,109 +1,74 @@
-import { Config } from "./config.js";
-import {
-  GetIssueParams,
-  JiraIssue,
-  JiraSearchResponse,
-  SearchIssuesParams,
-} from "./types.js";
+import type { JiraIssue } from "./types/jira-issue.js";
+import type { JiraApiResponse } from "./types/jira-response.js";
 
+/**
+ * JIRA API client
+ */
 export class JiraClient {
-  private readonly baseUrl: string;
-  private readonly headers: HeadersInit;
+  private baseUrl: string;
+  private auth: string;
 
-  constructor(config: Config) {
-    this.baseUrl = `${config.host}/rest/api/3`;
-    this.headers = {
-      Authorization: `Basic ${Buffer.from(
-        `${config.userEmail}:${config.apiToken}`
-      ).toString("base64")}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    };
+  constructor(baseUrl: string, email: string, apiToken: string) {
+    this.baseUrl = baseUrl;
+    this.auth = Buffer.from(`${email}:${apiToken}`).toString("base64");
   }
 
   /**
-   * Search for issues using JQL
+   * Search JIRA issues using JQL
    */
-  async searchIssues(params: SearchIssuesParams): Promise<JiraSearchResponse> {
+  async searchIssues(params: {
+    jql: string;
+    fields?: string[];
+    startAt?: number;
+    maxResults?: number;
+  }): Promise<JiraApiResponse> {
+    const { jql, fields, startAt, maxResults } = params;
     const searchParams = new URLSearchParams();
-    searchParams.append("jql", params.jql);
-
-    if (params.startAt !== undefined) {
-      searchParams.append("startAt", params.startAt.toString());
-    }
-
-    if (params.maxResults !== undefined) {
-      searchParams.append("maxResults", params.maxResults.toString());
-    }
-
-    if (params.fields) {
-      searchParams.append("fields", params.fields.join(","));
-    }
+    searchParams.append("jql", jql);
+    if (fields) searchParams.append("fields", fields.join(","));
+    if (startAt !== undefined)
+      searchParams.append("startAt", startAt.toString());
+    if (maxResults !== undefined)
+      searchParams.append("maxResults", maxResults.toString());
 
     const response = await fetch(
-      `${this.baseUrl}/search?${searchParams.toString()}`,
+      `${this.baseUrl}/rest/api/3/search?${searchParams.toString()}`,
       {
-        method: "GET",
-        headers: this.headers,
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: "application/json",
+        },
       }
     );
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to search issues: ${response.status} ${response.statusText}`
-      );
+      throw new Error(`JIRA API error: ${response.statusText}`);
     }
 
     return response.json();
   }
 
   /**
-   * Get issue by key
+   * Get JIRA issue by key
    */
-  async getIssue(params: GetIssueParams): Promise<JiraIssue> {
+  async getIssue(issueKey: string, fields?: string[]): Promise<JiraIssue> {
     const searchParams = new URLSearchParams();
+    if (fields) searchParams.append("fields", fields.join(","));
 
-    if (params.fields) {
-      searchParams.append("fields", params.fields.join(","));
-    }
-
-    const queryString = searchParams.toString();
-    const url = `${this.baseUrl}/issue/${params.issueKey}${
-      queryString ? `?${queryString}` : ""
-    }`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: this.headers,
-    });
+    const response = await fetch(
+      `${this.baseUrl}/rest/api/3/issue/${issueKey}?${searchParams.toString()}`,
+      {
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error(`Issue ${params.issueKey} not found`);
-      }
-      throw new Error(
-        `Failed to get issue: ${response.status} ${response.statusText}`
-      );
+      throw new Error(`JIRA API error: ${response.statusText}`);
     }
 
     return response.json();
-  }
-
-  /**
-   * Helper method to handle API errors
-   */
-  private async handleApiError(response: Response): Promise<never> {
-    let errorMessage = `HTTP ${response.status}`;
-    try {
-      const errorJson = await response.json();
-      if (errorJson.errorMessages?.length > 0) {
-        errorMessage += `: ${errorJson.errorMessages.join(", ")}`;
-      } else if (errorJson.message) {
-        errorMessage += `: ${errorJson.message}`;
-      }
-    } catch {
-      errorMessage += `: ${response.statusText}`;
-    }
-    throw new Error(errorMessage);
   }
 }

@@ -33,3 +33,18 @@ export function loadConfig(): Config {
 
 // Default configuration
 export const config = loadConfig();
+
+/**
+ * JIRA configuration
+ */
+export interface JiraConfig {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+}
+
+export const jiraConfig: JiraConfig = {
+  baseUrl: process.env.JIRA_BASE_URL || "",
+  email: process.env.JIRA_EMAIL || "",
+  apiToken: process.env.JIRA_API_TOKEN || "",
+};
