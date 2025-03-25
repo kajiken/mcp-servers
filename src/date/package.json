@@ -1,10 +1,9 @@
 {
-  "name": "mcp-server-jira",
+  "name": "mcp-server-date",
   "version": "0.1.0",
   "license": "MIT",
-  "type": "module",
   "bin": {
-    "mcp-server-jira": "./dist/index.js"
+    "mcp-server-date": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -12,14 +11,15 @@
   "scripts": {
     "build": "tsc",
     "start": "node ./dist/index.js",
-    "dev": "ts-node --esm ./index.ts",
+    "dev": "ts-node ./index.ts",
     "prepare": "npm run build",
     "watch": "tsc --watch"
   },
-  "description": "JIRA MCP Server",
+  "description": "Date MCP Server - Convert relative date expressions to absolute dates",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",
-    "zod": "^3.22.4"
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
