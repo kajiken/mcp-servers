@@ -1,302 +1,228 @@
-# JIRA MCP Server Design Doc
+# JIRA MCP Server Design Document
 
-## Overview
+## 概要
 
-JIRA MCP Server は、JIRA Cloud の REST API を利用して、チケット情報を取得・操作するための MCP Server です。
-Model Context Protocol を通じて、JIRA のチケット情報を取得し、AI アシスタントがチケット情報を参照・操作できるようにします。
+JIRA MCP Server は、JIRA Cloud の API を利用して、チケット情報の検索や取得を行うための MCP サーバーです。
+Model Context Protocol (MCP) を通じて、JIRA の機能にアクセスすることができます。
 
-## Goals
+## 機能要件
 
-- JIRA Cloud の REST API を利用して、チケット情報を参照する
-- Model Context Protocol を通じて、AI アシスタントがチケット情報を参照できるようにする
-- セキュアな認証情報の管理を実現する
+### 必須機能
 
-## Non-Goals
+1. チケット検索
 
-- JIRA Server/Data Center のサポート
-- チケットの作成・更新・削除機能
-- JIRA の管理者機能のサポート
+   - JQL (JIRA Query Language) を使用したチケットの検索
+   - ページネーションのサポート
+   - 取得フィールドの指定
 
-## Background
+2. チケット詳細取得
+   - チケットキーを指定して詳細情報を取得
+   - 取得フィールドの指定
 
-JIRA は、多くの開発チームで利用されているプロジェクト管理ツールです。
-AI アシスタントが JIRA のチケット情報を参照できるようにすることで、以下のようなユースケースが実現できます：
+## システム設計
 
-- チケットの検索と一覧表示
-- チケットの詳細情報の参照
-
-## System Architecture
-
-### High Level Design
+### アーキテクチャ
 
 ```mermaid
 graph TD
-    A[AI Assistant] -->|MCP| B[JIRA MCP Server]
-    B -->|REST API| C[JIRA Cloud]
-    B -->|Environment Variables| D[Authentication]
+    A[MCP Client] -->|stdio| B[JIRA MCP Server]
+    B -->|HTTP| C[JIRA Cloud API]
+    B -->|env| D[Configuration]
 ```
 
-### Components
+### コンポーネント構成
 
-#### MCP Server
+1. MCP Server Core
 
-- Model Context Protocol を実装したサーバー
-- JIRA API クライアントを利用してチケット情報を取得・操作
-- 環境変数から認証情報を取得
+   - MCP プロトコルの実装
+   - ツールの登録と実行
+   - stdio による通信
 
-#### JIRA API Client
+2. JIRA API Client
 
-- JIRA Cloud REST API を呼び出すクライアント
-- API トークンを利用した認証
-- エラーハンドリングとレート制限の管理
+   - JIRA Cloud API との通信
+   - 認証処理
+   - エラーハンドリング
 
-### Data Model
+3. Configuration
+   - 環境変数の管理
+   - バリデーション
+
+### データフロー
+
+1. チケット検索
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant Server as JIRA MCP Server
+    participant API as JIRA Cloud API
+
+    Client->>Server: search_issues tool call
+    Server->>API: GET /rest/api/3/search
+    API-->>Server: Search results
+    Server-->>Client: Formatted response
+```
+
+2. チケット詳細取得
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant Server as JIRA MCP Server
+    participant API as JIRA Cloud API
+
+    Client->>Server: get_issue tool call
+    Server->>API: GET /rest/api/3/issue/{key}
+    API-->>Server: Issue details
+    Server-->>Client: Formatted response
+```
+
+## 実装詳細
+
+### ディレクトリ構造
+
+```
+src/jira/
+├── README.md
+├── package.json
+├── tsconfig.json
+├── index.ts
+├── client.ts
+├── config.ts
+└── types.ts
+```
+
+### 主要コンポーネント
+
+1. `index.ts`
+
+   - MCP Server のメインエントリーポイント
+   - ツールの定義と登録
+   - サーバーの起動処理
+
+2. `client.ts`
+
+   - JIRA API クライアントの実装
+   - API エンドポイントの呼び出し
+   - エラーハンドリング
+
+3. `config.ts`
+
+   - 環境変数の定義と検証
+   - Zod によるバリデーション
+
+4. `types.ts`
+   - TypeScript の型定義
+   - API レスポンスの型
+   - ツールパラメータの型
+
+## 設定
+
+### 環境変数
+
+| 変数名         | 説明                            | 必須 |
+| -------------- | ------------------------------- | ---- |
+| JIRA_DOMAIN    | JIRA Cloud のドメイン           | ✓    |
+| JIRA_EMAIL     | JIRA アカウントのメールアドレス | ✓    |
+| JIRA_API_TOKEN | JIRA API トークン               | ✓    |
+
+## 使用方法
+
+### インストール
+
+```bash
+npm install -g @modelcontextprotocol/mcp-server-jira
+```
+
+### サーバーの起動
+
+```bash
+mcp-server-jira
+```
+
+### 利用可能なツール
+
+#### search_issues
+
+JQL を使用してチケットを検索します。
 
 ```typescript
-// Core Types
-interface JiraIssue {
-  id: string;
-  key: string;
-  fields: {
-    summary: string;
-    description: string;
-    status: {
-      name: string;
-      id: string;
-    };
-    assignee?: {
-      displayName: string;
-      accountId: string;
-    };
-    priority: {
-      name: string;
-      id: string;
-    };
-    created: string;
-    updated: string;
-  };
-}
-
-interface JiraSearchResponse {
-  issues: JiraIssue[];
-  total: number;
-  maxResults: number;
-  startAt: number;
-}
-
-// MCP Tool Parameters
 interface SearchIssuesParams {
   jql: string;
   startAt?: number;
   maxResults?: number;
-}
-
-interface GetIssueParams {
-  issueKey: string;
+  fields?: string[];
 }
 ```
 
-## API Design
+使用例:
 
-### MCP Tools
-
-1. `search_issues`
-
-   - Description: JQL を利用してチケットを検索
-   - Parameters:
-     - jql: string (必須) - JQL クエリ文字列
-     - startAt: number (オプション) - 検索開始位置
-     - maxResults: number (オプション) - 取得する最大件数
-
-2. `get_issue`
-
-   - Description: チケットの詳細情報を取得
-   - Parameters:
-     - issueKey: string (必須) - JIRA チケットキー
-
-## Security Considerations
-
-### Authentication
-
-- JIRA Cloud の API トークンを利用
-- 環境変数で認証情報を管理
-  - `JIRA_HOST`: JIRA Cloud のホスト URL
-  - `JIRA_API_TOKEN`: API トークン
-  - `JIRA_USER_EMAIL`: API トークンに紐づくユーザーのメールアドレス
-
-### Security Best Practices
-
-- 認証情報は環境変数でのみ管理し、ソースコード内には記載しない
-- API トークンの権限は必要最小限に設定
-- エラーメッセージには詳細な認証情報を含めない
-
-## Testing Strategy
-
-### Unit Tests
-
-#### Config Module Tests
-
-- 環境変数の存在チェック
-- 環境変数の型チェック
-- 無効な設定値のバリデーション
-
-#### API Client Tests
-
-- 認証ヘッダーの生成
-- API エンドポイントの構築
-- レスポンスのパース
-- エラーハンドリング
-- レート制限の処理
-
-#### MCP Tools Tests
-
-- パラメータバリデーション
-- JQL クエリの構築
-- レスポンスフォーマット
-- エラーレスポンス
-
-### Integration Tests
-
-#### Search Issues
-
-- 有効な JQL での検索
-- 無効な JQL でのエラー
-- ページネーションの動作
-- 検索結果の型チェック
-
-#### Get Issue
-
-- 存在するチケットの取得
-- 存在しないチケットのエラー
-- レスポンスフィールドの検証
-
-#### Error Scenarios
-
-- 認証エラー
-- ネットワークエラー
-- レート制限エラー
-- タイムアウト
-
-## Deployment
-
-### Requirements
-
-- Node.js 18.x 以上
-- TypeScript 5.x
-- 環境変数の設定
-  - `JIRA_HOST`
-  - `JIRA_API_TOKEN`
-  - `JIRA_USER_EMAIL`
-
-### Installation
-
-```bash
-cd src/jira
-npm install @modelcontextprotocol/sdk
-npm install @types/node zod
+```json
+{
+  "jql": "project = 'MY-PROJECT' AND status = 'In Progress'",
+  "maxResults": 10,
+  "fields": ["key", "summary", "status"]
+}
 ```
 
-### Configuration
+#### get_issue
+
+チケットの詳細情報を取得します。
 
 ```typescript
-// config.ts
-export const config = {
-  host: process.env.JIRA_HOST,
-  apiToken: process.env.JIRA_API_TOKEN,
-  userEmail: process.env.JIRA_USER_EMAIL,
-};
+interface GetIssueParams {
+  issueKey: string;
+  fields?: string[];
+}
 ```
 
-## Future Considerations
+使用例:
 
-- カスタムフィールドのサポート
-- バッチ処理のサポート
-- キャッシュ機能の追加
-- レート制限の最適化
+```json
+{
+  "issueKey": "PROJECT-123",
+  "fields": ["summary", "description", "status", "assignee"]
+}
+```
 
-## Implementation Tasks
+## エラーハンドリング
 
-### 1. プロジェクト初期設定 (Estimated: 1 hour)
+1. API エラー
 
-1.1. プロジェクトディレクトリの作成
+   - 400: 不正なリクエスト（JQL 構文エラーなど）
+   - 401: 認証エラー
+   - 403: 権限エラー
+   - 404: リソースが見つからない
+   - 429: レート制限超過
 
-- [ ] `src/jira` ディレクトリの作成
-- [ ] `.gitignore` の設定
-- [ ] `src/jira/.env.example` の作成
+2. 設定エラー
+   - 環境変数の不足
+   - 不正な設定値
 
-  1.2. 依存関係の設定
+## 開発ガイド
 
-- [ ] `src/jira/package.json` の作成
-- [ ] 必要なパッケージのインストール
+### 必要な環境
 
-  - `@modelcontextprotocol/sdk`
-  - `@types/node`
-  - `zod`
-  - `typescript`
-  - `dotenv`
+- Node.js 18 以上
+- npm 7 以上
 
-    1.3. TypeScript の設定
+### セットアップ
 
-- [ ] `tsconfig.json` の作成と設定
-- [ ] `src` ディレクトリ構造の作成
+1. リポジトリのクローン
+2. 依存パッケージのインストール
+3. 環境変数の設定
 
-### 2. 設定モジュールの実装 (Estimated: 1-2 hours)
+### ビルドとテスト
 
-2.1. 型定義の実装
+```bash
+# ビルド
+npm run build
 
-- [ ] `src/jira/types.ts` の作成
-- [ ] JIRA の型定義の実装
-- [ ] MCP Tool のパラメータ型定義の実装
+# 開発モードで実行
+npm run dev
+```
 
-  2.2. 設定モジュールの実装
+## ライセンス
 
-- [ ] `src/jira/config.ts` の作成
-- [ ] 環境変数の型定義の実装
-- [ ] 設定値の検証処理の実装
-
-### 3. JIRA API クライアントの実装 (Estimated: 2-3 hours)
-
-3.1. API クライアントの基本実装
-
-- [ ] `src/jira/client.ts` の作成
-- [ ] API クライアントクラスの実装
-- [ ] 認証処理の実装
-
-  3.2. API メソッドの実装
-
-- [ ] チケット検索メソッドの実装
-- [ ] チケット詳細取得メソッドの実装
-- [ ] エラーハンドリングの実装
-
-### 4. MCP Server の実装 (Estimated: 2-3 hours)
-
-4.1. サーバーの基本実装
-
-- [ ] `src/jira/index.ts` の作成
-- [ ] MCP Server インスタンスの作成
-- [ ] 基本的なエラーハンドリングの実装
-
-  4.2. MCP Tools の実装
-
-- [ ] `search_issues` ツールの実装
-- [ ] `get_issue` ツールの実装
-- [ ] レスポンスフォーマットの実装
-
-### 5. ドキュメントの作成 (Estimated: 1 hour)
-
-5.1. README の作成
-
-- [ ] インストール手順の記載
-- [ ] 設定手順の記載
-- [ ] 使用例の記載
-
-  5.2. API ドキュメントの作成
-
-- [ ] MCP Tools の使用方法の記載
-- [ ] パラメータの説明
-- [ ] レスポンスの説明
-
-## References
-
-- [JIRA Cloud REST API Documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/)
-- [Model Context Protocol Documentation](https://github.com/modelprompt/model-context-protocol)
+MIT
