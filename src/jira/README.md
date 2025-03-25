@@ -19,8 +19,8 @@ npm install -g @modelcontextprotocol/mcp-server-jira
 The server requires the following environment variables to be set:
 
 ```bash
-JIRA_DOMAIN=your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
+JIRA_HOST=your-domain.atlassian.net
+JIRA_USER_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-api-token
 ```
 
@@ -34,8 +34,8 @@ To obtain an API token:
 You can create a `.env` file in your project root with these variables:
 
 ```env
-JIRA_DOMAIN=your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
+JIRA_HOST=your-domain.atlassian.net
+JIRA_USER_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-api-token
 ```
 

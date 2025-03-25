@@ -121,11 +121,11 @@ src/jira/
 
 ### 環境変数
 
-| 変数名         | 説明                            | 必須 |
-| -------------- | ------------------------------- | ---- |
-| JIRA_DOMAIN    | JIRA Cloud のドメイン           | ✓    |
-| JIRA_EMAIL     | JIRA アカウントのメールアドレス | ✓    |
-| JIRA_API_TOKEN | JIRA API トークン               | ✓    |
+| 変数名          | 説明                            | 必須 |
+| --------------- | ------------------------------- | ---- |
+| JIRA_HOST       | JIRA Cloud のドメイン           | ✓    |
+| JIRA_USER_EMAIL | JIRA アカウントのメールアドレス | ✓    |
+| JIRA_API_TOKEN  | JIRA API トークン               | ✓    |
 
 ## 使用方法
 
