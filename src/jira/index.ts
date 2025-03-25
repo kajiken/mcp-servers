@@ -4,14 +4,20 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { JiraClient } from "./client.js";
-import { config } from "./config.js";
+import { jiraConfig } from "./config.js";
+import { ResponseFormatter } from "./formatters/response-formatter.js";
+import type { JiraMcpResponse } from "./types/jira-response.js";
 
 const server = new McpServer({
   name: "mcp-server-jira",
   version: "0.1.0",
 });
 
-const client = new JiraClient(config);
+const client = new JiraClient(
+  jiraConfig.baseUrl,
+  jiraConfig.email,
+  jiraConfig.apiToken
+);
 
 // Tool: Search issues using JQL
 server.tool(
@@ -37,26 +43,11 @@ server.tool(
         maxResults: params.maxResults,
         fields: params.fields,
       });
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(response, null, 2),
-          },
-        ],
-      };
+      return ResponseFormatter.format(response);
     } catch (error) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text" as const,
-            text:
-              error instanceof Error ? error.message : "Unknown error occurred",
-          },
-        ],
-      };
+      return ResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
     }
   }
 );
@@ -71,30 +62,18 @@ server.tool(
   },
   async (params) => {
     try {
-      const issue = await client.getIssue({
-        issueKey: params.issueKey,
-        fields: params.fields,
+      const response = await client.getIssue(params.issueKey, params.fields);
+      return ResponseFormatter.format({
+        expand: "",
+        startAt: 0,
+        maxResults: 1,
+        total: 1,
+        issues: [response],
       });
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(issue, null, 2),
-          },
-        ],
-      };
     } catch (error) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: "text" as const,
-            text:
-              error instanceof Error ? error.message : "Unknown error occurred",
-          },
-        ],
-      };
+      return ResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
     }
   }
 );
@@ -112,3 +91,59 @@ main().catch((error) => {
   console.error("Fatal error in main():", error);
   process.exit(1);
 });
+
+/**
+ * JIRA MCP Server
+ */
+export class JiraServer {
+  private client: JiraClient;
+
+  constructor(baseUrl: string, email: string, apiToken: string) {
+    this.client = new JiraClient(baseUrl, email, apiToken);
+  }
+
+  /**
+   * Search JIRA issues using JQL
+   */
+  async searchIssues(params: {
+    jql: string;
+    fields?: string[];
+    startAt?: number;
+    maxResults?: number;
+  }): Promise<JiraMcpResponse> {
+    try {
+      const response = await this.client.searchIssues(params);
+      return ResponseFormatter.format(response);
+    } catch (error) {
+      return ResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
+    }
+  }
+
+  /**
+   * Get JIRA issue by key
+   */
+  async getIssue(params: {
+    issueKey: string;
+    fields?: string[];
+  }): Promise<JiraMcpResponse> {
+    try {
+      const response = await this.client.getIssue(
+        params.issueKey,
+        params.fields
+      );
+      return ResponseFormatter.format({
+        expand: "",
+        startAt: 0,
+        maxResults: 1,
+        total: 1,
+        issues: [response],
+      });
+    } catch (error) {
+      return ResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
+    }
+  }
+}
