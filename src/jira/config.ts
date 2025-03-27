@@ -44,7 +44,7 @@ export interface JiraConfig {
 }
 
 export const jiraConfig: JiraConfig = {
-  baseUrl: process.env.JIRA_BASE_URL || "",
-  email: process.env.JIRA_EMAIL || "",
-  apiToken: process.env.JIRA_API_TOKEN || "",
+  baseUrl: config.host || "",
+  email: config.userEmail || "",
+  apiToken: config.apiToken || "",
 };

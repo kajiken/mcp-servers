@@ -1,3 +1,7 @@
+import type {
+  GetIssueCommentsParams,
+  JiraApiCommentsResponse,
+} from "./types/jira-comment.js";
 import type { JiraIssue } from "./types/jira-issue.js";
 import type { JiraApiResponse } from "./types/jira-response.js";
 
@@ -67,6 +71,52 @@ export class JiraClient {
 
     if (!response.ok) {
       throw new Error(`JIRA API error: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get comments for a JIRA issue
+   */
+  async getIssueComments(
+    params: GetIssueCommentsParams
+  ): Promise<JiraApiCommentsResponse> {
+    const { issueIdOrKey, startAt, maxResults, orderBy, expand } = params;
+    const searchParams = new URLSearchParams();
+
+    if (startAt !== undefined) {
+      searchParams.append("startAt", startAt.toString());
+    }
+
+    if (maxResults !== undefined) {
+      searchParams.append("maxResults", maxResults.toString());
+    }
+
+    if (orderBy !== undefined) {
+      searchParams.append("orderBy", orderBy);
+    }
+
+    if (expand !== undefined) {
+      searchParams.append("expand", expand);
+    }
+
+    const response = await fetch(
+      `${
+        this.baseUrl
+      }/rest/api/3/issue/${issueIdOrKey}/comment?${searchParams.toString()}`,
+      {
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `JIRA API error (${response.status}): ${response.statusText}`
+      );
     }
 
     return response.json();

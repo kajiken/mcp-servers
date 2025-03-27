@@ -5,7 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { JiraClient } from "./client.js";
 import { jiraConfig } from "./config.js";
+import { CommentResponseFormatter } from "./formatters/comment-formatter.js";
 import { ResponseFormatter } from "./formatters/response-formatter.js";
+import type { GetIssueCommentsParams } from "./types/jira-comment.js";
 import type { JiraMcpResponse } from "./types/jira-response.js";
 
 const server = new McpServer({
@@ -78,6 +80,41 @@ server.tool(
   }
 );
 
+// Tool: Get issue comments
+server.tool(
+  "get_issue_comments",
+  "Get JIRA issue comments by issue key",
+  {
+    issueIdOrKey: z.string().describe("JIRA issue key (e.g., 'PROJECT-123')"),
+    startAt: z.number().optional().describe("Starting index of the comments"),
+    maxResults: z
+      .number()
+      .optional()
+      .describe("Maximum number of comments to return"),
+    orderBy: z
+      .string()
+      .optional()
+      .describe("Order of comments (e.g., 'created', '-created')"),
+    expand: z.string().optional().describe("Additional information to include"),
+  },
+  async (params) => {
+    try {
+      const response = await client.getIssueComments({
+        issueIdOrKey: params.issueIdOrKey,
+        startAt: params.startAt,
+        maxResults: params.maxResults,
+        orderBy: params.orderBy,
+        expand: params.expand,
+      });
+      return CommentResponseFormatter.format(response);
+    } catch (error) {
+      return CommentResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
+    }
+  }
+);
+
 /**
  * Main function to start the server
  */
@@ -142,6 +179,22 @@ export class JiraServer {
       });
     } catch (error) {
       return ResponseFormatter.formatError(
+        error instanceof Error ? error : new Error("Unknown error occurred")
+      );
+    }
+  }
+
+  /**
+   * Get JIRA issue comments
+   */
+  async getIssueComments(
+    params: GetIssueCommentsParams
+  ): Promise<JiraMcpResponse> {
+    try {
+      const response = await this.client.getIssueComments(params);
+      return CommentResponseFormatter.format(response);
+    } catch (error) {
+      return CommentResponseFormatter.formatError(
         error instanceof Error ? error : new Error("Unknown error occurred")
       );
     }
