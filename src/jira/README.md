@@ -6,6 +6,7 @@ A Model Context Protocol (MCP) server for interacting with JIRA Cloud. This serv
 
 - Search JIRA issues using JQL queries
 - Retrieve detailed information about specific JIRA issues
+- Retrieve comments for specific JIRA issues
 - Configurable field selection for both search and get operations
 
 ## Installation
@@ -85,6 +86,28 @@ Example:
 {
   "issueKey": "PROJECT-123",
   "fields": ["summary", "description", "status", "assignee"]
+}
+```
+
+#### get_issue_comments
+
+Retrieve comments for a specific JIRA issue.
+
+Parameters:
+
+- `issueIdOrKey` (string, required): JIRA issue key (e.g., 'PROJECT-123')
+- `startAt` (number, optional): Starting index for pagination
+- `maxResults` (number, optional): Maximum number of comments to return
+- `orderBy` (string, optional): Order of comments (e.g., 'created', '-created')
+- `expand` (string, optional): Additional information to include
+
+Example:
+
+```json
+{
+  "issueIdOrKey": "PROJECT-123",
+  "maxResults": 20,
+  "orderBy": "-created"
 }
 ```
 
